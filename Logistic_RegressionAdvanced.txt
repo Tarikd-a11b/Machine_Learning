@@ -1,0 +1,72 @@
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+# Load dataset
+df=pd.read_csv("8-fraud_detection.csv")
+print(df.head())
+
+df['is_fraud'].value_counts()
+#inbalanced dataset
+
+# Preprocess data
+x=df.drop("is_fraud",axis=1)
+y=df["is_fraud"]
+sns.scatterplot(x=df['transaction_amount'],y=df['transaction_risk_score'],hue=y)
+plt.show()
+
+x_train,x_test,y_train,y_test=train_test_split(x,y,test_size=0.25,random_state=15)
+from sklearn.linear_model import LogisticRegression
+# Create Logistic Regression model
+model=LogisticRegression()
+penalty=['l1','l2','elasticnet']
+c_values=[100,10,1.0,0.1]
+solver=['lbfgs','liblinear','saga','newton-cg','sag','newton-cholesky']
+class_weights=[{0:w,1:y}for w in [1,10,50,100] for y in [1,10,50,100]]
+params=dict(penalty=penalty,C=c_values,solver=solver,class_weight=class_weights)
+#grid search cv
+from sklearn.model_selection import GridSearchCV,StratifiedKFold
+cv=StratifiedKFold()
+grid=GridSearchCV(estimator=model,param_grid=params,cv=cv,scoring='accuracy',n_jobs=-1)
+import warnings
+warnings.filterwarnings("ignore")
+grid.fit(x_train,y_train)
+print(grid.best_params_)
+print(grid.best_score_)
+y_pred=grid.predict(x_test)
+from sklearn.metrics import accuracy_score,confusion_matrix,classification_report
+accuracy=accuracy_score(y_pred,y_test)
+print(" Accuracy is:",accuracy)
+print(classification_report(y_pred,y_test))
+print(" Confusion Matrix is: \n",confusion_matrix(y_pred,y_test))
+#random search cv
+from sklearn.model_selection import RandomizedSearchCV
+model=LogisticRegression()
+randomcv=RandomizedSearchCV(estimator=model,param_distributions=params,cv=5,n_iter=10,scoring="accuracy")
+randomcv.fit(x_train,y_train)
+print(randomcv.best_params_)
+print(randomcv.best_score_)
+y_pred=randomcv.predict(x_test)
+accuracy=accuracy_score(y_pred,y_test)
+print(" Accuracy is:",accuracy)
+print(classification_report(y_pred,y_test))
+print(" Confusion Matrix is: \n",confusion_matrix(y_pred,y_test))
+randomcv.fit(x_train,y_train)
+
+#ROC-AUC Curve
+from sklearn.metrics import roc_auc_score,roc_curve
+model_prob=grid.predict_proba(x_test)
+model_prob=model_prob[:,1]#probability of positive class
+auc_score=roc_auc_score(y_test,model_prob)
+print("AUC Score is:",auc_score)
+roc_curve=roc_curve(y_test,model_prob)
+model_fpr,model_tpr,thresholds=roc_curve(y_test,model_prob)
+plt.plot(model_fpr,model_tpr,label="ROC Curve")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+plt.legend()
+plt.show()
